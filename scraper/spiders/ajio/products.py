@@ -1,7 +1,4 @@
-"""
-scrapy crawl ajio_products
-scrapy crawl ajio_products -a path="Men > Topwear > Kurtas"
-"""
+
 
 import json
 from urllib.parse import urlparse, parse_qs
@@ -25,13 +22,9 @@ class ProductsSpider(AjioBase):
     }
     path_filter = None
 
-    def __init__(self, path=None, *args, **kwargs):
+    def __init__(self, category_name=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if path:
-            try:
-                self.path_filter = json.loads(path)
-            except (json.JSONDecodeError, TypeError):
-                self.path_filter = path
+        self.category_name_filter = category_name
 
     def _build_api_url(self, category_id, query_param, category_name, page=0):
         params = {
@@ -39,11 +32,16 @@ class ProductsSpider(AjioBase):
             "currentPage": page,
             "pageSize": 45,
             "format": "json",
-            "query": query_param,
+            "query": query_param,  # :relevance:genderfilter:Women
+            "q": query_param,  # same value, separate param
             "gridColumns": 3,
-            "facets": f"l1l3nestedcategory:{category_name}",
+            "facets": f"genderfilter:{category_name}",  # ← fix this
             "advfilter": "true",
             "platform": "Desktop",
+            "store": "ajio",
+            "displayRatings": "true",
+            "enableRushDelivery": "true",
+            "userRestriction": "NON_LOGGED_IN",
         }
         prepared = req_lib.Request(
             "GET",
@@ -53,20 +51,22 @@ class ProductsSpider(AjioBase):
         return prepared.url
 
     def start_requests(self):
-        with open('/home/jobanpreetsingh/scraper/men_filters.json') as f:
-            men_filters = json.load(f)
+        with open('/home/jobanpreetsingh/scraper/all_values.json') as f:
+            all_values = json.load(f)
 
-        with open('/home/jobanpreetsingh/scraper/women_filters.json') as f:
-            women_filters = json.load(f)
-
-        all_values = []
-        for filters in [men_filters, women_filters][:3]:
-            for f in filters:
-                if f.get("code") == 'l1l3nestedcategory':
-                    all_values.extend(f.get('values', []))
-                    break
-
-        for entry in all_values:
+        if self.category_name_filter:
+            matched = [
+                entry for entry in all_values
+                if entry.get("name") == self.category_name_filter
+            ]
+            if not matched:
+                self.logger.error(
+                    f"No entry found for category_name='{self.category_name_filter}'"
+                )
+                return
+        else:
+            matched = all_values
+        for entry in matched:
             web_url = "https://www.ajio.com" + entry['query']['url']
             category_name = entry['code']
 
@@ -74,8 +74,6 @@ class ProductsSpider(AjioBase):
             category_id = path_parts[-1]
 
             query_param = parse_qs(urlparse(web_url).query).get('q', [''])[0]
-            query_param = query_param.replace('genderfilter:Men', '').replace('genderfilter:Women', '')
-            query_param = query_param.replace('::', ':').lstrip(':')
 
             api_url = self._build_api_url(category_id, query_param, category_name, page=0)
 
@@ -112,6 +110,9 @@ class ProductsSpider(AjioBase):
         total_pages = pagination.get("totalPages", 1)
         page_size = pagination.get("pageSize", 45)
 
+        # ADD THIS to debug
+        self.logger.info(f"Page {current_page}/{total_pages} | products={len(products)} | url={response.url}")
+
         for position, product in enumerate(products, start=current_page * page_size + 1):
             raw_url = product.get("url", "")
             sku = raw_url.split("/p/")[-1] if "/p/" in raw_url else ""
@@ -127,9 +128,10 @@ class ProductsSpider(AjioBase):
                 product_id=sku,
             )
 
-        # Pagination
+        # Pagination — use current_page from response, not meta page
         next_page = current_page + 1
         if next_page < total_pages:
+            self.logger.info(f"Queuing page {next_page} of {total_pages}")
             api_url = self._build_api_url(
                 meta["category_id"],
                 meta["query_param"],
@@ -140,4 +142,5 @@ class ProductsSpider(AjioBase):
                 url=api_url,
                 callback=self.parse_products,
                 meta={**meta, "page": next_page},
+                dont_filter=True,  # ← ADD THIS, Scrapy may be deduping paginated URLs
             )

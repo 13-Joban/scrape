@@ -1,13 +1,3 @@
-"""
-scrapy crawl products
-scrapy crawl products -a path="Men > Topwear > Kurtas"
-
-Reads:  data/YYYY-MM-DD/categories.json
-Saves:  data/YYYY-MM-DD/products/*.parquet
-
-path arg is full match, case-insensitive, separator " > "
-e.g.  -a path="men > topwear > kurtas"
-"""
 
 import json
 import os
@@ -18,7 +8,7 @@ from scraper.items import ProductListItem
 
 
 class ProductsSpider(MyntraBase):
-    name = "products"
+    name = "myntra_products"
 
     custom_settings = {
         **get_data_dirs("myntra"),
@@ -26,7 +16,7 @@ class ProductsSpider(MyntraBase):
             "scraper.pipelines.JsonPipeline": 100,
         }
     }
-    # -a path="Men > Topwear > Kurtas"   (optional)
+    # -a path="[Men, Topwear, Kurtas]"   (optional)
     path_filter = None
 
     def __init__(self, path=None, *args, **kwargs):

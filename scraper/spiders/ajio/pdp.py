@@ -156,16 +156,19 @@ class AjioPdpSpider(AjioBase):
         } if agg else {}
 
         # ── Breadcrumb path ──────────────────────────────────────
+        breadcrumb_raw = (
+            pdp.get("rilfnlBreadCrumbList", {})
+            .get("rilfnlBreadCrumb", [])
+        )
         breadcrumbs = [
             bc.get("name", "")
-            for bc in pdp.get("rilfnlBreadCrumbList", {})
-                        .get("rilfnlBreadCrumb", [])
+            for bc in breadcrumb_raw
             if bc.get("name")
         ]
 
         # ── Yield main item ──────────────────────────────────────
         yield PDPItem(
-            url=response.url,
+            url=f"https://www.ajio.com{pdp.get('url')}",
             product_id=current_sku,
             name=pdp.get("name", ""),
             brand=pdp.get("brandName", ""),
@@ -179,6 +182,7 @@ class AjioPdpSpider(AjioBase):
             videos=[],
             color=pdp.get("verticalColor", ""),
             description=pdp.get("description", "") or pdp.get("summary", ""),
+            breadcrumbs=breadcrumbs
         )
 
         # ── Crawl other color variants ───────────────────────────

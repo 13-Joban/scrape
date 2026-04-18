@@ -13,6 +13,7 @@ class ProductListItem(scrapy.Item):
     pdp_url = scrapy.Field()
     category = scrapy.Field()
     product_id = scrapy.Field()  # whatever ID is on the listing page
+    breadcrumbs = scrapy.Field()
 
 
 class PDPItem(scrapy.Item):
@@ -30,3 +31,4 @@ class PDPItem(scrapy.Item):
     mrp = scrapy.Field()
     selling_price = scrapy.Field()
     color = scrapy.Field()
+    breadcrumbs = scrapy.Field()

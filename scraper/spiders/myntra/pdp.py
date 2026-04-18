@@ -154,6 +154,39 @@ class PdpSpider(MyntraBase):
 
         current_id = str(response.meta.get("product_id") or pdp.get("id", ""))
 
+        breadcrumbs = []
+
+        # Target specifically application/ld+json with BreadcrumbList
+        for script in response.xpath("//script[@type='application/ld+json']/text()").getall():
+            try:
+                ld = json.loads(script)
+            except json.JSONDecodeError:
+                continue
+
+            # Could be a list of ld+json blocks or single dict
+            if isinstance(ld, list):
+                ld_items = ld
+            else:
+                ld_items = [ld]
+
+            for item in ld_items:
+                if item.get("@type") != "BreadcrumbList":
+                    continue
+
+                for element in item.get("itemListElement", []):
+                    name = element.get("item", {}).get("name", "")
+                    url = element.get("item", {}).get("@id", "")
+                    position = element.get("position")
+
+                    if name:
+                        breadcrumbs.append({
+                            "name": name,
+                            "url": url,
+                            "position": position,
+                        })
+
+                break
+
         yield PDPItem(
             url=response.url,
             product_id=current_id,
